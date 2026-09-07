@@ -447,7 +447,7 @@ export abstract class BaseAkariWindow<
     })
 
     this._window.on('unmaximize', () => {
-      runInAction(() => (this.state.status = 'normal'))
+      runInAction(() => (this.state.status = this._window?.isMinimized() ? 'minimized' : 'normal'))
     })
 
     this._window.on('maximize', () => {
@@ -459,7 +459,7 @@ export abstract class BaseAkariWindow<
     })
 
     this._window.on('restore', () => {
-      runInAction(() => (this.state.status = 'normal'))
+      runInAction(() => (this.state.status = this._window?.isMaximized() ? 'maximized' : 'normal'))
     })
 
     this._window.on('focus', () => {
