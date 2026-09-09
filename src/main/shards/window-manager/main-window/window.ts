@@ -22,7 +22,6 @@ export class AkariMainWindow extends BaseAkariWindow<MainWindowState, MainWindow
   static readonly MIN_HEIGHT = 600
 
   private _nextCloseAction: string | null = null
-  private _wasMaximized = false
 
   constructor(_context: WindowManagerMainContext) {
     const state = new MainWindowState()
@@ -36,6 +35,7 @@ export class AkariMainWindow extends BaseAkariWindow<MainWindowState, MainWindow
       htmlEntry: AkariMainWindow.HTML_ENTRY,
       rememberPosition: true,
       rememberSize: true,
+      rememberMaximized: true,
       repositionWindowIfInvisible: true,
       settingSchema: {
         closeAction: {
@@ -67,18 +67,7 @@ export class AkariMainWindow extends BaseAkariWindow<MainWindowState, MainWindow
       () => this.state.ready,
       (ready) => {
         if (ready) {
-          const window = this._window
-          // Finish the base window's normal-bounds recovery before maximizing (which also shows it).
-          queueMicrotask(() => {
-            if (!window || window.isDestroyed() || window !== this._window) {
-              return
-            }
-
-            if (this._wasMaximized) {
-              window.maximize()
-            }
-            this.showOrRestore()
-          })
+          this.showOrRestore()
         }
       }
     )
@@ -117,36 +106,6 @@ export class AkariMainWindow extends BaseAkariWindow<MainWindowState, MainWindow
         }
       }
     )
-  }
-
-  protected override _createWindow() {
-    super._createWindow()
-
-    const window = this._window!
-    window.on('maximize', () => {
-      // macOS zoom animations emit intermediate normal resizes. Keep the actual restore bounds
-      // of this frameless window instead of persisting an animation frame as its normal size.
-      if (this._context.shared.global.platform === 'darwin') {
-        this.state.setTrackedBounds(window.getNormalBounds())
-      }
-      this._saveMaximizedState(true)
-    })
-    window.on('unmaximize', () => {
-      // Minimizing must retain the last normal/maximized state for the next launch.
-      if (!window.isMinimized()) {
-        this._saveMaximizedState(false)
-      }
-    })
-  }
-
-  private _saveMaximizedState(maximized: boolean) {
-    if (this._context.shared.global.isReadyToQuit || this._wasMaximized === maximized) {
-      return
-    }
-
-    this._wasMaximized = maximized
-    // Serialize rapid toggles through the settings queue, which is flushed on normal shutdown.
-    void this._settingService._saveToStorage('maximized', maximized, { delay: 0 })
   }
 
   private _applyBackgroundMaterial(material: BackgroundMaterialSetting) {
@@ -264,7 +223,6 @@ export class AkariMainWindow extends BaseAkariWindow<MainWindowState, MainWindow
 
   override async onInit() {
     await super.onInit()
-    this._wasMaximized = (await this._settingService._getFromStorage('maximized')) === true
 
     this._watchMainWindow()
     this._registerMainWindowIpcHandlers()

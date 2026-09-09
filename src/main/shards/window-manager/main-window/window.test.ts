@@ -51,6 +51,9 @@ class NativeWindow extends EventEmitter {
   isMaximized() {
     return this.maximized
   }
+  isMaximizable() {
+    return true
+  }
   isFullScreen() {
     return false
   }
@@ -211,9 +214,10 @@ describe('main window maximized-state persistence', () => {
     expect(nativeWindow.maximize).not.toHaveBeenCalled()
     nativeWindow.emit('ready-to-show')
     expect(repositionWindowIfInvisible).toHaveBeenCalledWith(nativeWindow)
-    expect(nativeWindow.maximize).not.toHaveBeenCalled()
-    await Promise.resolve()
     expect(nativeWindow.maximize).toHaveBeenCalledOnce()
+    expect(vi.mocked(repositionWindowIfInvisible).mock.invocationCallOrder.at(-1)).toBeLessThan(
+      nativeWindow.maximize.mock.invocationCallOrder[0]
+    )
     expect(nativeWindow.isVisible()).toBe(true)
     nativeWindow.unmaximize()
     expect(nativeWindow.getContentBounds()).toEqual(normalBounds)
@@ -237,6 +241,18 @@ describe('main window maximized-state persistence', () => {
     expect(stored.get(boundsKey)).toEqual(normalBounds)
     const second = await launch(stored)
     expect(second.nativeWindow.isMaximized()).toBe(true)
+  })
+
+  it('defers maximization until bounds recovery even if shown before ready', async () => {
+    const { mainWindow, nativeWindow } = await launch(new Map([[maximizedKey, true]]), false)
+    mainWindow.showOrRestore()
+    expect(nativeWindow.isVisible()).toBe(true)
+    expect(nativeWindow.maximize).not.toHaveBeenCalled()
+    nativeWindow.emit('ready-to-show')
+    expect(nativeWindow.maximize).toHaveBeenCalledOnce()
+    expect(vi.mocked(repositionWindowIfInvisible).mock.invocationCallOrder.at(-1)).toBeLessThan(
+      nativeWindow.maximize.mock.invocationCallOrder[0]
+    )
   })
 
   it('persists the final manual choice during rapid toggles and restores the normal size', async () => {
